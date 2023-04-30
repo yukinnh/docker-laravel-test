@@ -1,30 +1,33 @@
-#ベースイメージ。php DockerHub公式イメージをベースに。
-FROM php:8.1-fpm-buster
+FROM php:8.1-fpm
+RUN apt-get update \
+    && apt-get install -y \
+    git \
+    zip \
+    unzip \
+    vim \
+    libfreetype6-dev \
+    libjpeg62-turbo-dev \
+    libmcrypt-dev \
+    libpng-dev \
+    libfontconfig1 \
+    libxrender1
 
-# コンテナ内のサーバー環境変数の設定
-# https://matsuand.github.io/docs.docker.jp.onthefly/engine/reference/builder/#env
-ENV COMPOSER_ALLOW_SUPERUSER=1 \
-    COMPOSER_HOME=/composer
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg
+RUN docker-php-ext-install gd
+RUN docker-php-ext-install bcmath
+RUN docker-php-ext-install pdo_mysql mysqli exif
+RUN cd /usr/bin && curl -s http://getcomposer.org/installer | php && ln -s /usr/bin/composer.phar /usr/bin/composer
 
-# https://matsuand.github.io/docs.docker.jp.onthefly/engine/reference/builder/#copy
-COPY --from=composer:2.2 /usr/bin/composer /usr/bin/composer
+ENV NODE_VERSION=16.14.0
+RUN curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.34.0/install.sh | bash
+ENV NVM_DIR=/root/.nvm
+RUN . "$NVM_DIR/nvm.sh" && nvm install ${NODE_VERSION}
+RUN . "$NVM_DIR/nvm.sh" && nvm use v${NODE_VERSION}
+RUN . "$NVM_DIR/nvm.sh" && nvm alias default v${NODE_VERSION}
+ENV PATH="/root/.nvm/versions/node/v${NODE_VERSION}/bin/:${PATH}"
+RUN node --version
+RUN npm --version
 
-# apt関係
-# https://matsuand.github.io/docs.docker.jp.onthefly/engine/reference/builder/#run
-
-    # インストール可能なパッケージ一覧更新
-RUN apt-get update && \
-    # Laravelに必要なパッケージインストール
-    #  --no-install-recommends：不要なパッケージのインストール防止
-    apt-get -y install --no-install-recommends git unzip libzip-dev libicu-dev libonig-dev && \
-    # パッケージインストールで使用したキャッシュファイル削除
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* && \
-    #  PHPの拡張ライブラリインストール
-    docker-php-ext-install intl pdo_mysql zip bcmath
-
-# https://matsuand.github.io/docs.docker.jp.onthefly/engine/reference/builder/#copy
-COPY ./php.ini /usr/local/etc/php/php.ini
-
-# https://matsuand.github.io/docs.docker.jp.onthefly/engine/reference/builder/#workdir
 WORKDIR /data
+ADD . /src/storage
+RUN chown -R www-data:www-data /src/storage
